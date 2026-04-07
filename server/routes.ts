@@ -8,6 +8,42 @@ const OWM_BASE = "https://api.openweathermap.org";
 const API_KEY = process.env.OWM_API_KEY || "";
 const USE_MOCK = !API_KEY;
 
+// Convert Celsius to Fahrenheit
+function cToF(c: number): number {
+  return Math.round((c * 9 / 5 + 32) * 10) / 10;
+}
+
+// Convert m/s to mph
+function msToMph(ms: number): number {
+  return Math.round(ms * 2.237 * 10) / 10;
+}
+
+// Deep-convert mock weather data from metric to imperial
+function convertCurrentToImperial(data: any): any {
+  const d = JSON.parse(JSON.stringify(data));
+  d.main.temp = cToF(d.main.temp);
+  d.main.feels_like = cToF(d.main.feels_like);
+  d.main.temp_min = cToF(d.main.temp_min);
+  d.main.temp_max = cToF(d.main.temp_max);
+  if (d.wind?.speed) d.wind.speed = msToMph(d.wind.speed);
+  if (d.wind?.gust) d.wind.gust = msToMph(d.wind.gust);
+  return d;
+}
+
+function convertForecastToImperial(data: any): any {
+  const d = JSON.parse(JSON.stringify(data));
+  d.list = d.list.map((item: any) => {
+    item.main.temp = cToF(item.main.temp);
+    item.main.feels_like = cToF(item.main.feels_like);
+    item.main.temp_min = cToF(item.main.temp_min);
+    item.main.temp_max = cToF(item.main.temp_max);
+    if (item.wind?.speed) item.wind.speed = msToMph(item.wind.speed);
+    if (item.wind?.gust) item.wind.gust = msToMph(item.wind.gust);
+    return item;
+  });
+  return d;
+}
+
 if (USE_MOCK) {
   console.log("[weather] No OWM_API_KEY found — using demo data");
 } else {
@@ -38,7 +74,9 @@ export function registerRoutes(server: Server, app: Express) {
   // Proxy: Current weather
   app.get("/api/weather/current", async (req, res) => {
     if (USE_MOCK) {
-      return res.json(mockCurrentWeather);
+      const units = req.query.units as string;
+      const data = units === "imperial" ? convertCurrentToImperial(mockCurrentWeather) : mockCurrentWeather;
+      return res.json(data);
     }
     try {
       const { lat, lon, units } = req.query;
@@ -54,7 +92,9 @@ export function registerRoutes(server: Server, app: Express) {
   // Proxy: 5-day/3-hour forecast
   app.get("/api/weather/forecast", async (req, res) => {
     if (USE_MOCK) {
-      return res.json(mockForecast);
+      const units = req.query.units as string;
+      const data = units === "imperial" ? convertForecastToImperial(mockForecast) : mockForecast;
+      return res.json(data);
     }
     try {
       const { lat, lon, units } = req.query;
